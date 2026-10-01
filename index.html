@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Server Health Check - How to Run</title>
+<link rel="icon" href="assets/icons/favicon.ico" sizes="any">
+<link rel="icon" type="image/svg+xml" href="assets/icons/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icons/favicon-16.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<meta name="theme-color" content="#6366f1">
+<script>
+// Apply saved theme before paint (prevents a flash)
+(function(){
+  try {
+    var t = localStorage.getItem('hc-theme');
+    if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {}
+})();
+</script>
+<style>
+/* ---------- Theme tokens ---------- */
+:root{
+  --bg:#f3f5ff;
+  --bg-grad:radial-gradient(900px 500px at 8% -5%,#e0e7ff 0,transparent 60%),radial-gradient(800px 500px at 100% 0,#fce7f3 0,transparent 55%),radial-gradient(700px 500px at 50% 110%,#cffafe 0,transparent 55%);
+  --card:#ffffff;
+  --card-2:#f8f9ff;
+  --text:#0f172a;
+  --muted:#586377;
+  --line:#e3e7f5;
+  --glass:rgba(255,255,255,.72);
+  --shadow:0 1px 2px rgba(15,23,42,.05),0 8px 24px rgba(79,70,229,.08);
+  --code-bg:#0f172a;
+  --code-text:#e2e8f0;
+  --inline-code:#eef0ff;
+  --inline-code-text:#4338ca;
+  --ok:#059669;--warn:#d97706;--fail:#e11d48;
+  --note-bg:#fff7e6;--note-line:#f59e0b;--note-text:#78350f;
+  --tip-bg:#ecfdf5;--tip-line:#10b981;
+}
+:root[data-theme="dark"]{
+  --bg:#0a0e1f;
+  --bg-grad:radial-gradient(900px 500px at 8% -5%,rgba(99,102,241,.28) 0,transparent 60%),radial-gradient(800px 500px at 100% 0,rgba(236,72,153,.18) 0,transparent 55%),radial-gradient(700px 500px at 50% 110%,rgba(6,182,212,.16) 0,transparent 55%);
+  --card:#131a33;
+  --card-2:#192142;
+  --text:#e9edfb;
+  --muted:#9aa6c4;
+  --line:#26305a;
+  --glass:rgba(19,26,51,.72);
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+  --code-bg:#070b18;
+  --code-text:#dbe4ff;
+  --inline-code:#222c57;
+  --inline-code-text:#a5b4fc;
+  --ok:#34d399;--warn:#fbbf24;--fail:#fb7185;
+  --note-bg:#2a2210;--note-line:#f59e0b;--note-text:#fde68a;
+  --tip-bg:#0d2a22;--tip-line:#10b981;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0a0e1f;
+    --bg-grad:radial-gradient(900px 500px at 8% -5%,rgba(99,102,241,.28) 0,transparent 60%),radial-gradient(800px 500px at 100% 0,rgba(236,72,153,.18) 0,transparent 55%),radial-gradient(700px 500px at 50% 110%,rgba(6,182,212,.16) 0,transparent 55%);
+    --card:#131a33;--card-2:#192142;--text:#e9edfb;--muted:#9aa6c4;--line:#26305a;--glass:rgba(19,26,51,.72);
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px rgba(0,0,0,.35);
+    --code-bg:#070b18;--code-text:#dbe4ff;--inline-code:#222c57;--inline-code-text:#a5b4fc;
+    --ok:#34d399;--warn:#fbbf24;--fail:#fb7185;
+    --note-bg:#2a2210;--note-line:#f59e0b;--note-text:#fde68a;--tip-bg:#0d2a22;--tip-line:#10b981;
+  }
+}
+
+/* ---------- Base ---------- */
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);background-image:var(--bg-grad);background-attachment:fixed;color:var(--text);line-height:1.6;transition:background-color .3s,color .3s}
+a{color:#6366f1}
+:root[data-theme="dark"] a{color:#a5b4fc}
+code{font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace}
+:not(pre)>code{background:var(--inline-code);color:var(--inline-code-text);padding:2px 7px;border-radius:6px;font-size:.88em;font-weight:600}
+
+/* ---------- Top bar ---------- */
+.topbar{position:sticky;top:0;z-index:50;background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.topbar-in{max-width:1220px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.01em}
+.brand .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#6366f1,#ec4899);display:grid;place-items:center;box-shadow:0 6px 16px rgba(99,102,241,.4)}
+.brand .logo svg{width:19px;height:19px;stroke:#fff}
+.spacer{flex:1}
+.seg{display:flex;background:var(--card-2);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;color:var(--muted);padding:6px 14px;border-radius:999px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;transition:.2s}
+.seg button:hover{color:var(--text)}
+.seg button.on{background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;box-shadow:0 4px 12px rgba(99,102,241,.4)}
+.iconbtn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--card-2);color:var(--text);border-radius:999px;padding:7px 14px;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;transition:.2s}
+.iconbtn:hover{border-color:#6366f1;transform:translateY(-1px)}
+.iconbtn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+#themeBtn .sun{display:none}
+:root[data-theme="dark"] #themeBtn .sun{display:block}
+:root[data-theme="dark"] #themeBtn .moon{display:none}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) #themeBtn .sun{display:block}
+  :root:not([data-theme="light"]) #themeBtn .moon{display:none}
+}
+
+/* ---------- Layout ---------- */
+.layout{display:flex;max-width:1220px;margin:0 auto;gap:28px;padding:22px 16px 40px}
+nav{width:220px;flex:none;position:sticky;top:78px;align-self:flex-start;max-height:calc(100vh - 100px);overflow:auto}
+nav h3{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:4px 10px 10px}
+nav a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;color:var(--muted);text-decoration:none;font-size:14px;font-weight:500;border:1px solid transparent;transition:.2s}
+nav a i{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 22%,transparent)}
+nav a:hover{background:var(--card);color:var(--text)}
+nav a.active{background:var(--card);color:var(--text);border-color:var(--line);box-shadow:var(--shadow);font-weight:700}
+main{flex:1;min-width:0}
+
+/* ---------- Hero ---------- */
+.hero{position:relative;overflow:hidden;border-radius:22px;padding:38px 36px 34px;margin-bottom:22px;color:#fff;background:linear-gradient(120deg,#4f46e5 0%,#7c3aed 45%,#db2777 100%);box-shadow:0 20px 50px rgba(99,102,241,.35)}
+.hero::before,.hero::after{content:"";position:absolute;border-radius:50%;filter:blur(40px);opacity:.55;pointer-events:none}
+.hero::before{width:300px;height:300px;right:-60px;top:-90px;background:#22d3ee}
+.hero::after{width:260px;height:260px;left:30%;bottom:-150px;background:#fbbf24;opacity:.35}
+.hero>*{position:relative}
+.hero .kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);padding:5px 12px;border-radius:999px;margin-bottom:14px}
+.hero h1{margin:0 0 10px;font-size:clamp(28px,5vw,44px);line-height:1.1;letter-spacing:-.02em}
+.hero p{margin:0 0 20px;max-width:620px;font-size:17px;opacity:.95}
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);padding:6px 13px;border-radius:999px;font-size:13px;font-weight:600;text-decoration:none;color:#fff;backdrop-filter:blur(6px);transition:.2s}
+.chip:hover{background:rgba(255,255,255,.3);transform:translateY(-1px)}
+.chip b{width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block}
+.chip.w b{background:#7dd3fc}.chip.l b{background:#fcd34d}.chip.h b{background:#c4b5fd}.chip.p b{background:#fda4af}
+
+/* ---------- Sections ---------- */
+section{--c:#6366f1;position:relative;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px 28px 26px;margin-bottom:20px;box-shadow:var(--shadow);overflow:hidden;animation:rise .5s both}
+section::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:linear-gradient(180deg,var(--c),color-mix(in srgb,var(--c) 40%,#ec4899))}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){section{animation:none}html{scroll-behavior:auto}}
+section h2{display:flex;align-items:center;gap:12px;margin:0 0 14px;font-size:22px;letter-spacing:-.01em}
+.ico{width:38px;height:38px;border-radius:12px;flex:none;display:grid;place-items:center;background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 55%,#ec4899));box-shadow:0 6px 16px color-mix(in srgb,var(--c) 40%,transparent)}
+.ico svg{width:20px;height:20px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+section h3{margin:24px 0 8px;font-size:16px}
+#overview{--c:#6366f1}#windows{--c:#0ea5e9}#linux{--c:#f59e0b}#html{--c:#8b5cf6}#headless{--c:#10b981}#pdf{--c:#f43f5e}#results{--c:#06b6d4}#thresholds{--c:#d946ef}#auto{--c:#84cc16}
+.badge{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.08em;padding:3px 10px;border-radius:999px;color:#fff;background:var(--c)}
+
+/* ---------- Steps ---------- */
+.steps{counter-reset:s;list-style:none;padding:0;margin:0}
+.steps>li{counter-increment:s;position:relative;padding:0 0 16px 48px}
+.steps>li::before{content:counter(s);position:absolute;left:0;top:0;width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--c),color-mix(in srgb,var(--c) 55%,#ec4899));color:#fff;font-weight:800;display:grid;place-items:center;font-size:14px;box-shadow:0 4px 12px color-mix(in srgb,var(--c) 45%,transparent)}
+.steps>li:not(:last-child)::after{content:"";position:absolute;left:15px;top:36px;bottom:2px;width:2px;background:linear-gradient(var(--line),transparent)}
+.steps>li>b.t{display:block;margin-bottom:5px;font-size:15.5px}
+
+/* ---------- Code ---------- */
+pre{position:relative;background:var(--code-bg);color:var(--code-text);padding:38px 16px 14px;border-radius:12px;overflow:auto;font-size:13px;line-height:1.55;margin:8px 0;border:1px solid rgba(148,163,184,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+pre::before{content:"";position:absolute;top:13px;left:15px;width:10px;height:10px;border-radius:50%;background:#ff5f57;box-shadow:16px 0 #febc2e,32px 0 #28c840}
+pre button{position:absolute;top:7px;right:8px;background:rgba(148,163,184,.18);color:#e2e8f0;border:1px solid rgba(148,163,184,.25);border-radius:8px;font-size:12px;font-weight:600;padding:4px 11px;cursor:pointer;font-family:inherit;transition:.2s}
+pre button:hover{background:#6366f1;border-color:#6366f1}
+pre button.done{background:#10b981;border-color:#10b981}
+
+/* ---------- Tables, grid, notes ---------- */
+table{border-collapse:separate;border-spacing:0;width:100%;margin:10px 0;font-size:14px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+th,td{padding:10px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:0}
+th{background:var(--card-2);font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+tbody tr:hover td,tr:hover td{background:color-mix(in srgb,var(--c) 6%,transparent)}
+.note{background:var(--note-bg);border:1px solid color-mix(in srgb,var(--note-line) 40%,transparent);border-left:5px solid var(--note-line);color:var(--note-text);padding:12px 16px;border-radius:12px;margin:14px 0;font-size:14px}
+:root[data-theme="dark"] .note code,.note code{color:inherit;background:rgba(245,158,11,.2)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin:10px 0}
+.item{display:flex;gap:12px;align-items:flex-start;background:var(--card-2);border:1px solid var(--line);border-radius:14px;padding:14px;transition:.2s}
+.item:hover{transform:translateY(-3px);box-shadow:var(--shadow);border-color:var(--ic)}
+.item .t{width:36px;height:36px;border-radius:11px;flex:none;display:grid;place-items:center;background:var(--ic);box-shadow:0 5px 14px color-mix(in srgb,var(--ic) 40%,transparent)}
+.item .t svg{width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.item b{display:block;font-size:15px}
+.item span{color:var(--muted);font-size:13px;line-height:1.45;display:block;margin-top:2px}
+.lv{font-family:ui-monospace,Consolas,monospace;font-weight:800}
+.lv.ok{color:var(--ok)}.lv.warn{color:var(--warn)}.lv.fail{color:var(--fail)}
+.opt{background:var(--card-2);border:1px solid var(--line);border-radius:16px;padding:6px 20px 14px;margin:16px 0}
+.opt h3{margin-top:14px}
+.opt h3 em{font-style:normal;display:inline-block;font-size:11px;font-weight:800;letter-spacing:.06em;color:#fff;background:var(--c);padding:2px 9px;border-radius:999px;margin-right:8px;vertical-align:2px}
+.status-row{display:flex;gap:10px;flex-wrap:wrap;margin:8px 0 12px}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;font-weight:700;font-size:13px;color:#fff}
+.pill.ok{background:#10b981}.pill.warn{background:#f59e0b}.pill.fail{background:#f43f5e}
+ul{padding-left:20px}
+li::marker{color:var(--c)}
+.hide{display:none!important}
+footer{color:var(--muted);font-size:13px;text-align:center;padding:18px 14px 8px}
+.credit{display:inline-flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center;font-size:14px}
+.gh{display:inline-flex;align-items:center;gap:8px;padding:7px 16px 7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--text);text-decoration:none;box-shadow:var(--shadow);transition:.2s}
+.gh svg{width:20px;height:20px}
+.gh b{background:none;-webkit-text-fill-color:currentColor;color:inherit}
+.gh:hover{transform:translateY(-2px);border-color:#6366f1;color:#6366f1}
+:root[data-theme="dark"] .gh{color:var(--text)}
+:root[data-theme="dark"] .gh:hover{color:#a5b4fc}
+.foot-sub{margin-top:10px;font-size:12px;opacity:.8}
+footer b{background:linear-gradient(90deg,#6366f1,#ec4899);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+@media (max-width:860px){
+  .layout{flex-direction:column;gap:12px}
+  nav{position:static;width:auto;max-height:none;display:flex;gap:6px;overflow-x:auto;padding-bottom:4px}
+  nav h3{display:none}
+  nav a{white-space:nowrap;border-color:var(--line);background:var(--card)}
+  .hero{padding:28px 22px}
+  section{padding:20px 18px 22px}
+  .brand span{display:none}
+}
+
+/* ---------- Print (always light, no UI chrome) ---------- */
+@page{size:A4;margin:12mm}
+@media print{
+  :root,:root[data-theme="dark"]{--bg:#fff;--bg-grad:none;--card:#fff;--card-2:#f7f8fc;--text:#000;--muted:#444;--line:#d4d8e6;--shadow:none;--code-bg:#f3f4f8;--code-text:#111;--inline-code:#eef0ff;--inline-code-text:#3730a3;--note-bg:#fff7e6;--note-text:#5a3a05}
+  body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:12px}
+  .topbar,nav,pre button{display:none!important}
+  .layout{display:block;padding:0}
+  section{break-inside:auto;box-shadow:none;animation:none}
+  pre,table,tr,.item,.opt{break-inside:avoid;page-break-inside:avoid}
+  h2,h3{break-after:avoid;page-break-after:avoid}
+  pre{white-space:pre-wrap}
+  pre::before{display:none}
+  pre{padding-top:14px}
+  .hero{box-shadow:none}
+}
+</style>
+</head>
+<body>
+
+<!-- ======= Top bar ======= -->
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <div class="logo"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></div>
+      <span>Health Check</span>
+    </div>
+    <div class="spacer"></div>
+    <div class="seg filter" role="group" aria-label="Operating system filter">
+      <button data-show="all" class="on">All</button>
+      <button data-show="win">Windows</button>
+      <button data-show="lin">Linux</button>
+    </div>
+    <button class="iconbtn" id="themeBtn" type="button" aria-label="Toggle dark / light mode" title="Toggle dark / light mode">
+      <svg class="moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <svg class="sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      <span id="themeLabel">Dark</span>
+    </button>
+    <button class="iconbtn" type="button" onclick="window.print()" title="Print or save this guide as PDF">
+      <svg viewBox="0 0 24 24"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      PDF
+    </button>
+  </div>
+</header>
+
+<div class="layout">
+
+<nav id="toc">
+  <h3>Contents</h3>
+  <a href="#overview" style="--c:#6366f1"><i></i>Overview</a>
+  <a href="#windows" data-os="win" style="--c:#0ea5e9"><i></i>Windows</a>
+  <a href="#linux" data-os="lin" style="--c:#f59e0b"><i></i>Linux</a>
+  <a href="#html" style="--c:#8b5cf6"><i></i>HTML report</a>
+  <a href="#headless" data-os="lin" style="--c:#10b981"><i></i>Headless server</a>
+  <a href="#pdf" style="--c:#f43f5e"><i></i>Save as PDF</a>
+  <a href="#results" style="--c:#06b6d4"><i></i>Reading results</a>
+  <a href="#thresholds" style="--c:#d946ef"><i></i>Thresholds</a>
+  <a href="#auto" style="--c:#84cc16"><i></i>Run automatically</a>
+</nav>
+
+<main>
+
+<div class="hero">
+  <span class="kicker">Windows &middot; Linux &middot; Ubuntu</span>
+  <h1>Server Health Check</h1>
+  <p>Check CPU, RAM, storage, network, open ports and security updates in one run. Follow the steps below to run the scripts and read the report.</p>
+  <div class="chips">
+    <a class="chip w" href="#windows"><b></b>Windows</a>
+    <a class="chip l" href="#linux"><b></b>Linux</a>
+    <a class="chip h" href="#html"><b></b>HTML report</a>
+    <a class="chip p" href="#pdf"><b></b>Save as PDF</a>
+  </div>
+</div>
+
+<!-- ======= Overview ======= -->
+<section id="overview">
+  <h2><span class="ico"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span>Overview</h2>
+  <p>Two scripts check the health of a server and print a clear <span class="lv ok">OK</span> / <span class="lv warn">WARN</span> / <span class="lv fail">FAIL</span> report. You do not need a list of ports: the scripts ask the server what is listening.</p>
+  <table>
+    <tr><th>File</th><th>For</th><th>Run with</th></tr>
+    <tr><td><code>healthcheck.ps1</code></td><td>Windows (PowerShell 5.1+)</td><td>PowerShell</td></tr>
+    <tr><td><code>healthcheck.sh</code></td><td>Linux (bash)</td><td>Terminal</td></tr>
+  </table>
+  <h3>Project files</h3>
+<pre>health-check/
+|-- index.html            this guide
+|-- README.md             same guide as plain text
+|-- scripts/
+|   |-- healthcheck.ps1   Windows (PowerShell)
+|   `-- healthcheck.sh    Linux (bash)
+`-- assets/
+    `-- icons/            favicon.ico, favicon.svg, PNG icons</pre>
+  <p>Run the scripts from inside the <code>scripts</code> folder (<code>cd scripts</code> first), or give the full path to the script.</p>
+  <h3 id="checks">What it checks</h3>
+  <div class="grid">
+    <div class="item" style="--ic:#6366f1"><div class="t"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg></div><div><b>CPU</b><span>Usage and load / processor queue</span></div></div>
+    <div class="item" style="--ic:#8b5cf6"><div class="t"><svg viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="10" rx="2"/><path d="M6 7v10M10 7v10M14 7v10M18 7v10"/></svg></div><div><b>RAM</b><span>Memory used, plus swap or page file</span></div></div>
+    <div class="item" style="--ic:#0ea5e9"><div class="t"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg></div><div><b>Storage</b><span>Disk usage per drive; inodes (Linux) or physical disk health (Windows)</span></div></div>
+    <div class="item" style="--ic:#10b981"><div class="t"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div><div><b>Network</b><span>Gateway, internet, DNS, adapter errors</span></div></div>
+    <div class="item" style="--ic:#f59e0b"><div class="t"><svg viewBox="0 0 24 24"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/><path d="M2 9a15 15 0 0 1 20 0"/></svg></div><div><b>Open ports</b><span>Every listening port with its process; warns on risky ports exposed to the network</span></div></div>
+    <div class="item" style="--ic:#f43f5e"><div class="t"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></div><div><b>Security updates</b><span>Pending security patches, last patch date, pending reboot</span></div></div>
+    <div class="item" style="--ic:#d946ef"><div class="t"><svg viewBox="0 0 24 24"><path d="M12 2l2.4 6.6L21 11l-6.6 2.4L12 20l-2.4-6.6L3 11l6.6-2.4z"/></svg></div><div><b>Extras</b><span>Failed services, firewall, failed logins (24h), Defender (Windows), SSH root login (Linux), time sync, top processes</span></div></div>
+  </div>
+</section>
+
+<!-- ======= Windows ======= -->
+<section id="windows" data-os="win">
+  <h2><span class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>Windows <span class="badge">POWERSHELL</span></h2>
+  <ol class="steps">
+    <li><b class="t">Open PowerShell as Administrator</b>
+      Start menu &rarr; type <code>PowerShell</code> &rarr; right-click &rarr; <b>Run as administrator</b>.
+      (Admin is needed for the failed-logon and Windows Update checks.)</li>
+    <li><b class="t">Go to the folder with the script</b>
+<pre>cd C:\Users\DELL\Desktop</pre></li>
+    <li><b class="t">Run it</b>
+<pre>powershell -ExecutionPolicy Bypass -File .\healthcheck.ps1</pre></li>
+  </ol>
+
+  <h3>Options</h3>
+  <p>Put options at the <b>end</b> of the command, after the file name.</p>
+  <table>
+    <tr><th>Option</th><th>Effect</th></tr>
+    <tr><td><code>-SkipUpdates</code></td><td>Skip the Windows Update scan (much faster; the scan takes 30-60s)</td></tr>
+    <tr><td><code>-Quiet</code></td><td>Show only warnings and failures</td></tr>
+    <tr><td><code>-Html</code></td><td>Also save an HTML report and open it in your browser</td></tr>
+    <tr><td><code>-OutFile &lt;path&gt;</code></td><td>Where to save the HTML report (default: next to the script)</td></tr>
+    <tr><td><code>-NoOpen</code></td><td>Save the HTML report but do not open the browser</td></tr>
+  </table>
+<pre># Fast run
+powershell -ExecutionPolicy Bypass -File .\healthcheck.ps1 -SkipUpdates
+
+# Only problems
+powershell -ExecutionPolicy Bypass -File .\healthcheck.ps1 -Quiet
+
+# Both
+powershell -ExecutionPolicy Bypass -File .\healthcheck.ps1 -SkipUpdates -Quiet</pre>
+
+  <h3>Troubleshooting</h3>
+  <ul>
+    <li><b>"running scripts is disabled"</b>: use the <code>-ExecutionPolicy Bypass</code> form shown above.</li>
+    <li><b>"file not found"</b>: you are in the wrong folder. Run <code>cd</code> to the folder where you saved the script.</li>
+    <li><b>Do not use <code>bash</code></b> on Windows PowerShell. It points to WSL, which may not be installed. Use the <code>.ps1</code> script.</li>
+  </ul>
+</section>
+
+<!-- ======= Linux ======= -->
+<section id="linux" data-os="lin">
+  <h2><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 17l6-6-6-6M12 19h8"/></svg></span>Linux <span class="badge">BASH</span></h2>
+  <ol class="steps">
+    <li><b class="t">Open a terminal on the server</b></li>
+    <li><b class="t">Go to the folder with the script</b>
+<pre>cd /path/to/folder</pre></li>
+    <li><b class="t">Run it</b>
+<pre>sudo bash healthcheck.sh</pre>
+      Or make it executable once and run it directly:
+<pre>chmod +x healthcheck.sh
+sudo ./healthcheck.sh</pre></li>
+  </ol>
+
+  <h3>Options</h3>
+  <table>
+    <tr><th>Option</th><th>Effect</th></tr>
+    <tr><td><code>--quiet</code></td><td>Show only warnings and failures</td></tr>
+    <tr><td><code>--html</code></td><td>Also save an HTML report (default: current folder)</td></tr>
+    <tr><td><code>--out &lt;path&gt;</code></td><td>Where to save the HTML report (implies <code>--html</code>)</td></tr>
+  </table>
+<pre>sudo bash healthcheck.sh --quiet
+sudo bash healthcheck.sh --html
+sudo bash healthcheck.sh --html --out /var/www/html/health.html</pre>
+  <div class="note">Linux uses a double dash (<code>--quiet</code>); Windows uses a single dash (<code>-Quiet</code>).</div>
+
+  <h3>Notes</h3>
+  <ul>
+    <li>Run with <code>sudo</code> for full results (logs, firewall and package checks need root).</li>
+    <li>For fresh security-update data on Debian/Ubuntu, run <code>sudo apt-get update</code> first.</li>
+    <li>Supported package managers: apt, dnf, yum, zypper.</li>
+  </ul>
+</section>
+
+<!-- ======= HTML report ======= -->
+<section id="html">
+  <h2><span class="ico"><svg viewBox="0 0 24 24"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg></span>HTML report</h2>
+  <p>Add <code>-Html</code> (Windows) or <code>--html</code> (Linux) to get a web page with a green / amber / red banner, counts of failures, warnings and passed checks, every check grouped by section, plus the listening-ports and top-process tables.</p>
+  <div class="status-row">
+    <span class="pill ok">HEALTHY</span><span class="pill warn">DEGRADED</span><span class="pill fail">UNHEALTHY</span>
+  </div>
+  <div data-os="win">
+<pre># Windows: saves the report and opens it in your browser
+powershell -ExecutionPolicy Bypass -File .\healthcheck.ps1 -Html -SkipUpdates</pre>
+  </div>
+  <div data-os="lin">
+<pre># Linux: saves healthcheck-report-&lt;host&gt;-&lt;time&gt;.html in the current folder
+sudo bash healthcheck.sh --html</pre>
+  </div>
+  <p>A headless Ubuntu server has no browser, so see <a href="#headless">Viewing the HTML report on a headless server</a>. To keep the report as a file you can email or archive, see <a href="#pdf">Save as PDF</a>.</p>
+  <p>For a page that always shows the latest result, run it on a schedule with a fixed output file, for example <code>--html --out /var/www/html/health.html</code> (see <a href="#auto">Run it automatically</a>).</p>
+</section>
+
+<!-- ======= Headless ======= -->
+<section id="headless" data-os="lin">
+  <h2><span class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="8" rx="2"/><rect x="2" y="13" width="20" height="8" rx="2"/><path d="M6 7h.01M6 17h.01"/></svg></span>Viewing the report on a headless server</h2>
+  <p>A headless server (no screen, SSH only) cannot open a browser, so view the report from your own PC. Pick one option.</p>
+  <div class="note"><b>Security:</b> the report lists open ports and server details. Only expose it on a private network, or protect it with a password (Option 3).</div>
+
+  <div class="opt">
+    <h3><em>OPTION 1</em>Copy the file to your PC (simplest)</h3>
+    <p>First create the report on the server:</p>
+<pre>sudo bash healthcheck.sh --html --out /tmp/health.html</pre>
+    <p>Then run this on <b>your PC</b> (Windows PowerShell, or a Mac/Linux terminal), not on the server:</p>
+<pre>scp youruser@SERVER_IP:/tmp/health.html .</pre>
+    <p>Double-click the downloaded <code>health.html</code> to open it. On Windows you can also use WinSCP or FileZilla (SFTP) with the same login you use for SSH.</p>
+  </div>
+
+  <div class="opt">
+    <h3><em>OPTION 2</em>Temporary web page with Python (no install needed)</h3>
+    <p>On the server:</p>
+<pre>sudo bash healthcheck.sh --html --out /tmp/report/health.html
+cd /tmp/report
+python3 -m http.server 8080</pre>
+    <p>On your PC browser open <code>http://SERVER_IP:8080/health.html</code>. Press <code>Ctrl+C</code> on the server to stop.</p>
+    <p>If the page does not load, the firewall may be blocking the port:</p>
+<pre>sudo ufw allow 8080/tcp
+# when finished, remove it again:
+sudo ufw delete allow 8080/tcp</pre>
+    <p><b>Safer version (SSH tunnel, nothing exposed):</b></p>
+<pre># on the server
+cd /tmp/report &amp;&amp; python3 -m http.server 8080 --bind 127.0.0.1</pre>
+<pre># on your PC (keep this window open)
+ssh -L 8080:127.0.0.1:8080 youruser@SERVER_IP</pre>
+    <p>Then open <code>http://localhost:8080/health.html</code> on your PC.</p>
+  </div>
+
+  <div class="opt">
+    <h3><em>OPTION 3</em>Always-on page with nginx (best for scheduled checks)</h3>
+    <ol class="steps">
+      <li><b class="t">Install nginx</b>
+<pre>sudo apt update &amp;&amp; sudo apt install -y nginx</pre></li>
+      <li><b class="t">Schedule the check so the page always shows the latest result</b>
+<pre>sudo crontab -e</pre>
+        Add:
+<pre>*/5 * * * * /path/to/healthcheck.sh --quiet --html --out /var/www/html/health.html &gt;/dev/null 2&gt;&amp;1</pre></li>
+      <li><b class="t">Open it in your PC browser</b>
+        <code>http://SERVER_IP/health.html</code></li>
+      <li><b class="t">(Recommended) Add a password</b>
+<pre>sudo apt install -y apache2-utils
+sudo htpasswd -c /etc/nginx/.htpasswd admin</pre>
+        Add these two lines inside the <code>location /</code> block of <code>/etc/nginx/sites-available/default</code>:
+<pre>auth_basic "Restricted";
+auth_basic_user_file /etc/nginx/.htpasswd;</pre>
+        Then reload nginx:
+<pre>sudo nginx -t &amp;&amp; sudo systemctl reload nginx</pre></li>
+      <li><b class="t">If you cannot connect, allow web traffic through the firewall</b>
+<pre>sudo ufw allow 'Nginx HTTP'</pre></li>
+    </ol>
+  </div>
+  <p><b>Which one?</b> For a one-off look use Option 1. For regular monitoring use Option 3.</p>
+</section>
+
+<!-- ======= PDF ======= -->
+<section id="pdf">
+  <h2><span class="ico"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 15h6M9 18h4"/></svg></span>Save the report as PDF</h2>
+  <p>The HTML report is built to print cleanly on A4, with the status colors kept. Open the report in your browser, then:</p>
+  <ol class="steps">
+    <li><b class="t">Click "Save as PDF / Print"</b> at the top of the report (or press <code>Ctrl+P</code>).</li>
+    <li><b class="t">Choose "Save as PDF"</b> as the destination (Chrome and Edge: <i>Destination &rarr; Save as PDF</i>).</li>
+    <li><b class="t">Click Save.</b> If colors look faded, tick <b>Background graphics</b> under "More settings".</li>
+  </ol>
+  <p>This guide can be saved the same way with the PDF button in the top bar. It always prints in light colors.</p>
+</section>
+
+<!-- ======= Results ======= -->
+<section id="results">
+  <h2><span class="ico"><svg viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span>Reading the results</h2>
+  <table>
+    <tr><td class="lv ok" style="width:90px">[ OK ]</td><td>all good</td></tr>
+    <tr><td class="lv warn">[WARN]</td><td>needs attention soon</td></tr>
+    <tr><td class="lv fail">[FAIL]</td><td>needs attention now</td></tr>
+  </table>
+  <p>The last lines show a summary and an overall status:</p>
+  <table>
+    <tr><th>Status</th><th>Exit code</th><th>Meaning</th></tr>
+    <tr><td><span class="pill ok">HEALTHY</span></td><td>0</td><td>No warnings or failures</td></tr>
+    <tr><td><span class="pill warn">DEGRADED</span></td><td>1</td><td>One or more warnings</td></tr>
+    <tr><td><span class="pill fail">UNHEALTHY</span></td><td>2</td><td>One or more failures</td></tr>
+  </table>
+  <p>In the open-ports section:</p>
+  <ul>
+    <li><code>0.0.0.0</code> / <code>::</code> (Windows column shows <code>NETWORK</code>) means reachable from other machines, unless a firewall blocks it.</li>
+    <li><code>127.0.0.1</code> (shown as <code>local</code>) means reachable only from the server itself.</li>
+  </ul>
+</section>
+
+<!-- ======= Thresholds ======= -->
+<section id="thresholds">
+  <h2><span class="ico"><svg viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg></span>Changing the thresholds</h2>
+  <p>Open the script in a text editor. The settings are at the top of the file.</p>
+<pre>CPU_WARN=80    CPU_FAIL=95      # CPU %
+MEM_WARN=80    MEM_FAIL=95      # RAM %
+DISK_WARN=80   DISK_FAIL=90     # disk %
+PING_TARGET="8.8.8.8"           # internet test address
+SSH_FAIL_WARN=20                # failed logins in 24h</pre>
+  <p>In the PowerShell script the same settings are named <code>$CpuWarn</code>, <code>$CpuFail</code>, <code>$MemWarn</code>, <code>$DiskWarn</code>, and so on.</p>
+</section>
+
+<!-- ======= Automation ======= -->
+<section id="auto">
+  <h2><span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>Run it automatically</h2>
+  <div data-os="win">
+    <h3>Windows: Task Scheduler</h3>
+    <ol class="steps">
+      <li>Open <b>Task Scheduler</b> &rarr; <b>Create Task</b>.</li>
+      <li>Tick <b>Run with highest privileges</b>.</li>
+      <li><b>Triggers</b>: New &rarr; Daily &rarr; repeat every 15 minutes (or your choice).</li>
+      <li><b>Actions</b>: New. Program: <code>powershell.exe</code>. Arguments:
+<pre>-ExecutionPolicy Bypass -File "C:\path\healthcheck.ps1" -SkipUpdates -Quiet</pre></li>
+    </ol>
+    <p>To save output to a log, use this as the argument instead:</p>
+<pre>-ExecutionPolicy Bypass -Command "&amp; 'C:\path\healthcheck.ps1' -SkipUpdates -Quiet *&gt;&gt; C:\path\health.log"</pre>
+  </div>
+  <div data-os="lin">
+    <h3>Linux: cron</h3>
+<pre>sudo crontab -e</pre>
+    <p>Add:</p>
+<pre>*/5 * * * * /path/healthcheck.sh --quiet &gt;&gt; /var/log/health.log 2&gt;&amp;1</pre>
+    <p>Use the exit code in your own scripts:</p>
+<pre>./healthcheck.sh --quiet || echo "Server needs attention"</pre>
+  </div>
+</section>
+
+<footer>
+  <div class="credit">
+    <span>Created by</span>
+    <a class="gh" href="https://github.com/muhamaddarulhadi" target="_blank" rel="noopener noreferrer" aria-label="muhamaddarulhadi on GitHub">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
+      <b>muhamaddarulhadi</b>
+    </a>
+  </div>
+  <div class="foot-sub">Server Health Check guide &middot; healthcheck.ps1 &middot; healthcheck.sh</div>
+</footer>
+</main>
+</div>
+
+<script>
+(function(){
+  var root = document.documentElement;
+
+  /* ---------- Theme toggle (light / dark, remembers choice, follows system by default) ---------- */
+  var themeBtn = document.getElementById('themeBtn');
+  var themeLabel = document.getElementById('themeLabel');
+  var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+  function current(){
+    var t = root.getAttribute('data-theme');
+    if (t) return t;
+    return (mq && mq.matches) ? 'dark' : 'light';
+  }
+  function paint(){ themeLabel.textContent = current() === 'dark' ? 'Light' : 'Dark'; }
+  themeBtn.addEventListener('click', function(){
+    var next = current() === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('hc-theme', next); } catch (e) {}
+    paint();
+  });
+  if (mq && mq.addEventListener) mq.addEventListener('change', paint);
+  paint();
+
+  /* ---------- Copy buttons ---------- */
+  document.querySelectorAll('pre').forEach(function(pre){
+    var b = document.createElement('button');
+    b.type = 'button'; b.textContent = 'Copy';
+    b.addEventListener('click', function(){
+      var text = pre.innerText.replace(/\s*Copy\s*$/, '');
+      var done = function(){ b.textContent = 'Copied'; b.classList.add('done'); setTimeout(function(){ b.textContent = 'Copy'; b.classList.remove('done'); }, 1500); };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done);
+      } else {
+        var ta = document.createElement('textarea'); ta.value = text;
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); done(); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+    });
+    pre.appendChild(b);
+  });
+
+  /* ---------- Windows / Linux filter ---------- */
+  var buttons = document.querySelectorAll('.filter button[data-show]');
+  function show(os){
+    document.querySelectorAll('[data-os]').forEach(function(el){
+      el.classList.toggle('hide', os !== 'all' && el.getAttribute('data-os') !== os);
+    });
+    buttons.forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-show') === os); });
+    try { localStorage.setItem('hc-os', os); } catch (e) {}
+  }
+  buttons.forEach(function(b){ b.addEventListener('click', function(){ show(b.getAttribute('data-show')); }); });
+  var saved = 'all';
+  try { saved = localStorage.getItem('hc-os') || 'all'; } catch (e) {}
+  show(saved);
+
+  /* ---------- Highlight the current section in the sidebar ---------- */
+  var links = {};
+  document.querySelectorAll('#toc a').forEach(function(a){ links[a.getAttribute('href').slice(1)] = a; });
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if (e.isIntersecting && links[e.target.id]) {
+          Object.keys(links).forEach(function(k){ links[k].classList.remove('active'); });
+          links[e.target.id].classList.add('active');
+        }
+      });
+    }, { rootMargin: '-20% 0px -65% 0px' });
+    document.querySelectorAll('main section').forEach(function(s){ io.observe(s); });
+  }
+})();
+</script>
+</body>
+</html>
