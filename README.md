@@ -7,7 +7,7 @@ Two scripts that check the health of a server and print a clear OK / WARN / FAIL
 | `healthcheck.ps1` | Windows (PowerShell 5.1+) | PowerShell |
 | `healthcheck.sh` | Linux (bash) | Terminal |
 
-> Prefer a web page? Open `index.html` in a browser for this guide with copy buttons and a Windows / Linux filter.
+> Prefer a web page? Open `index.html` in a browser for this guide with copy buttons and a Windows / Linux filter, or you can open it via this [link guide](https://muhamaddarulhadi.github.io/Health-Checker/).
 
 ## Project structure
 
