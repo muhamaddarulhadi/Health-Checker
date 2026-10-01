@@ -12,7 +12,7 @@ Two scripts that check the health of a server and print a clear OK / WARN / FAIL
 ## Project structure
 
 ```
-health-check/
+Health-Checker/
 |-- index.html            guide web page (open in a browser)
 |-- README.md             this file
 |-- .nojekyll             needed for GitHub Pages
@@ -31,10 +31,10 @@ Run the scripts from inside the `scripts` folder (`cd scripts` first), or give t
 - **CPU**: usage and load / processor queue
 - **RAM**: memory used, plus swap or page file
 - **Storage**: disk usage per drive; inodes (Linux) or physical disk health (Windows)
-- **Network**: gateway, internet, DNS, adapter errors
+- **Network**: IP addresses, gateway, internet ping with latency and packet loss, DNS, adapter errors
 - **Open ports**: every listening port with the process using it, and a warning for risky ports exposed to the network
-- **Security updates**: pending security patches, last patch date, pending reboot
-- **Extras**: failed services, firewall, failed logins (24h), Defender (Windows), SSH root login (Linux), time sync, top processes
+- **Security updates**: pending security patches (with package names), last update age, pending reboot
+- **Extras**: failed services, firewall, failed logins in the last 24h with the latest attempts and top source IPs (Windows logons / Linux SSH), recent system-log errors with details, time sync, top processes. Windows also checks Defender, BitLocker and RDP; Linux also checks SSH root login and disk SMART health.
 
 You do not need to supply a list of ports. The scripts ask the server what is listening.
 
@@ -67,6 +67,7 @@ Put options at the **end** of the command, after the file name.
 | `-Html` | Also save an HTML report and open it in your browser |
 | `-OutFile <path>` | Where to save the HTML report (default: next to the script) |
 | `-NoOpen` | Save the HTML report but do not open the browser |
+| `-LogFile <path>` | Also save the full plain-text output to a log file |
 
 ```powershell
 # Fast run
@@ -77,6 +78,9 @@ powershell -ExecutionPolicy Bypass -File .\healthcheck.ps1 -Quiet
 
 # Both
 powershell -ExecutionPolicy Bypass -File .\healthcheck.ps1 -SkipUpdates -Quiet
+
+# Save a plain-text log as well
+powershell -ExecutionPolicy Bypass -File .\healthcheck.ps1 -LogFile .\health.log
 ```
 
 ### Troubleshooting
@@ -113,11 +117,13 @@ sudo ./healthcheck.sh
 | `--quiet` | Show only warnings and failures |
 | `--html` | Also save an HTML report (default: current folder) |
 | `--out <path>` | Where to save the HTML report (implies `--html`) |
+| `--log <path>` | Also save the full plain-text output to a log file |
 
 ```bash
 sudo bash healthcheck.sh --quiet
 sudo bash healthcheck.sh --html
 sudo bash healthcheck.sh --html --out /var/www/html/health.html
+sudo bash healthcheck.sh --log ./health.log
 ```
 
 (Linux uses a double dash `--quiet`; Windows uses a single dash `-Quiet`.)
@@ -131,7 +137,7 @@ sudo bash healthcheck.sh --html --out /var/www/html/health.html
 
 ## HTML report
 
-Add `-Html` (Windows) or `--html` (Linux) to get a web page with a green / amber / red banner, counts of failures, warnings and passed checks, every check grouped by section, plus the listening-ports and top-process tables.
+Add `-Html` (Windows) or `--html` (Linux) to get a modern web page titled **SERVER HEALTH & SECURITY DIAGNOSTIC REPORT**. It has a green / amber / red status banner with a pass-rate ring, counts of failures, warnings and passed checks, "At a glance" gauges for CPU, RAM and every disk, collapsible sections with the listening-ports and top-process tables, an **Issues only** filter, and a dark / light toggle.
 
 ```powershell
 # Windows: saves the report and opens it in your browser
@@ -270,15 +276,32 @@ In the open-ports section:
 
 Open the script in a text editor. The settings are at the top of the file.
 
+**Linux (`healthcheck.sh`)**
 ```
 CPU_WARN=80    CPU_FAIL=95      # CPU %
 MEM_WARN=80    MEM_FAIL=95      # RAM %
+SWAP_WARN=50   SWAP_FAIL=80     # swap %
 DISK_WARN=80   DISK_FAIL=90     # disk %
+INODE_WARN=80  INODE_FAIL=90    # inode %
+LOAD_WARN_FACTOR=1              # load per CPU core
 PING_TARGET="8.8.8.8"           # internet test address
-SSH_FAIL_WARN=20                # failed logins in 24h
+DNS_TARGET="google.com"         # DNS test name
+PING_WARN_MS=150                # slow ping (ms)
+SSH_FAIL_WARN=20                # failed SSH logins in 24h
+PATCH_AGE_WARN_DAYS=35          # days since last package update
+SYSERR_WARN=20                  # system-log errors in 24h
+SHOW_LAST_N=5                   # recent events / attempts to list
 ```
 
-In the PowerShell script the same settings are named `$CpuWarn`, `$CpuFail`, `$MemWarn`, `$DiskWarn`, and so on.
+**Windows (`healthcheck.ps1`)**
+```
+$CpuWarn = 80;  $CpuFail = 95
+$MemWarn = 80;  $MemFail = 95
+$DiskWarn = 80; $DiskFail = 90
+$PingTarget = '8.8.8.8'; $DnsTarget = 'google.com'
+$PingWarnMs = 150; $FailedLogonWarn = 20; $PatchAgeWarnDays = 35
+$SysErrWarn = 20;  $ShowLastN = 5
+```
 
 ---
 
@@ -295,9 +318,9 @@ In the PowerShell script the same settings are named `$CpuWarn`, `$CpuFail`, `$M
      -ExecutionPolicy Bypass -File "C:\path\healthcheck.ps1" -SkipUpdates -Quiet
      ```
 
-To save output to a log, use this as the argument instead:
+To save output to a log, add `-LogFile`:
 ```
--ExecutionPolicy Bypass -Command "& 'C:\path\healthcheck.ps1' -SkipUpdates -Quiet *>> C:\path\health.log"
+-ExecutionPolicy Bypass -File "C:\path\healthcheck.ps1" -SkipUpdates -Quiet -LogFile "C:\path\health.log"
 ```
 
 ### Linux: cron
