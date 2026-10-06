@@ -374,6 +374,22 @@ if ($Html -or $OutFile) {
         $gauges += '</div>'
     }
 
+    # summary table of warnings and failures (failures first)
+    $summary = @()
+    $summary += '<div class="sumhead"><div class="title">Summary of issues</div><button class="iconbtn" id="xlsBtn" type="button" title="Download the issues as an Excel file"><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>Download Excel</button></div>'
+    $issues = @($script:Results | Where-Object { $_.Level -eq 'FAIL' }) + @($script:Results | Where-Object { $_.Level -eq 'WARN' })
+    if ($issues.Count -gt 0) {
+        $summary += '<div class="sumwrap"><table class="sumtbl"><thead><tr><th>#</th><th>Status</th><th>Section</th><th>Finding</th></tr></thead><tbody>'
+        $n = 0
+        foreach ($r in $issues) {
+            $n++
+            $summary += '<tr class="' + $r.Level + '"><td class="n">' + $n + '</td><td><span class="pill">' + $r.Level + '</span></td><td class="sn">' + (& $enc $r.Section) + '</td><td>' + (& $enc $r.Msg) + '</td></tr>'
+        }
+        $summary += '</tbody></table></div>'
+    } else {
+        $summary += '<div class="sumok">No warnings or failures. Everything looks healthy.</div>'
+    }
+
     $secs = New-Object System.Text.StringBuilder
     [void]$secs.AppendLine('<div class="title">Detailed results</div>')
     foreach ($name in $script:SectionNames) {
@@ -507,6 +523,21 @@ code,.mono{font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace}
 .gauge.warn .val{color:var(--warn)}.gauge.warn .bar i{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
 .gauge.fail .val{color:var(--fail)}.gauge.fail .bar i{background:linear-gradient(90deg,#fb7185,#e11d48)}
 
+/* summary of issues */
+.sumwrap{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow-x:auto}
+.sumtbl{width:100%;border-collapse:collapse;font-size:14px}
+.sumtbl th{background:var(--card2);text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:11px 16px}
+.sumtbl td{padding:11px 16px;border-top:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+.sumtbl td.n{width:44px;color:var(--muted);font-weight:700}
+.sumtbl td.sn{white-space:nowrap;font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.sumtbl .pill{display:inline-block;white-space:nowrap;min-width:58px;text-align:center;font-size:11px;font-weight:800;letter-spacing:.05em;border-radius:999px;padding:3px 10px;color:#fff}
+.sumtbl tr.FAIL{background:var(--fail-bg)}.sumtbl tr.FAIL .pill{background:var(--fail)}
+.sumtbl tr.WARN{background:var(--warn-bg)}.sumtbl tr.WARN .pill{background:var(--warn)}
+.sumhead{display:flex;align-items:center;gap:12px}
+.sumhead .title{flex:1}
+.sumhead .iconbtn{margin-top:14px;flex:none}
+.sumok{text-align:center;padding:22px;border:2px dashed var(--line);border-radius:18px;color:var(--ok);font-weight:700}
+
 /* sections */
 .sec{background:var(--card);border:1px solid var(--line);border-radius:18px;margin-bottom:14px;box-shadow:var(--shadow);overflow:hidden}
 .sec>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:14px 18px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;font-size:14px;user-select:none}
@@ -569,6 +600,9 @@ footer .sub{margin-top:10px;font-size:12px}
   .stat,.gauge,.sec{box-shadow:none}
   .row,.gauge,.stat,.tbl tr{break-inside:avoid;page-break-inside:avoid}
   .sec{break-inside:auto}
+  .sumtbl tr{break-inside:avoid;page-break-inside:avoid}
+  .sumwrap{box-shadow:none}
+  .sumhead .iconbtn{display:none}
   .sec>summary,.title{break-after:avoid;page-break-after:avoid}
   .stats{grid-template-columns:repeat(4,1fr)}
   .gauges{grid-template-columns:repeat(3,1fr)}
@@ -646,6 +680,90 @@ footer .sub{margin-top:10px;font-size:12px}
     document.body.classList.toggle('issues-only',b.getAttribute('data-f')==='issues');
   });});
 
+  /* download the summary of issues as an Excel (.xlsx) file - built in the browser, no libraries */
+  (function(){
+    var xb=document.getElementById('xlsBtn'); if(!xb)return;
+    if(!document.querySelector('.sumtbl')){xb.style.display='none';return;}
+    var enc=new TextEncoder();
+    var crcT=(function(){var t=[],c,n,k;for(n=0;n<256;n++){c=n;for(k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
+    function crc32(b){var c=0xFFFFFFFF;for(var i=0;i<b.length;i++)c=crcT[(c^b[i])&255]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+    function xe(s){return String(s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+    function cs(ref,st,text){return '<c r="'+ref+'" s="'+st+'" t="inlineStr"><is><t xml:space="preserve">'+xe(text)+'</t></is></c>';}
+    function cn(ref,st,num){return '<c r="'+ref+'" s="'+st+'"><v>'+num+'</v></c>';}
+    function ce(ref,st){return '<c r="'+ref+'" s="'+st+'"/>';}
+    function zip(files){
+      var parts=[],central=[],off=0,i,name,data,crc,h,dv,c,cv,d=new Date();
+      var dt=((d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1))&0xFFFF;
+      var dd=(((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate())&0xFFFF;
+      for(i=0;i<files.length;i++){
+        name=enc.encode(files[i][0]); data=enc.encode(files[i][1]); crc=crc32(data);
+        h=new Uint8Array(30+name.length); dv=new DataView(h.buffer);
+        dv.setUint32(0,0x04034b50,true);dv.setUint16(4,20,true);dv.setUint16(6,0x0800,true);dv.setUint16(8,0,true);
+        dv.setUint16(10,dt,true);dv.setUint16(12,dd,true);dv.setUint32(14,crc,true);dv.setUint32(18,data.length,true);dv.setUint32(22,data.length,true);
+        dv.setUint16(26,name.length,true);dv.setUint16(28,0,true);h.set(name,30);
+        parts.push(h,data);
+        c=new Uint8Array(46+name.length); cv=new DataView(c.buffer);
+        cv.setUint32(0,0x02014b50,true);cv.setUint16(4,20,true);cv.setUint16(6,20,true);cv.setUint16(8,0x0800,true);cv.setUint16(10,0,true);
+        cv.setUint16(12,dt,true);cv.setUint16(14,dd,true);cv.setUint32(16,crc,true);cv.setUint32(20,data.length,true);cv.setUint32(24,data.length,true);
+        cv.setUint16(28,name.length,true);cv.setUint32(42,off,true);
+        c.set(name,46);central.push(c);
+        off+=h.length+data.length;
+      }
+      var csz=0; central.forEach(function(x){csz+=x.length;});
+      var e=new Uint8Array(22),ev=new DataView(e.buffer);
+      ev.setUint32(0,0x06054b50,true);ev.setUint16(8,files.length,true);ev.setUint16(10,files.length,true);ev.setUint32(12,csz,true);ev.setUint32(16,off,true);
+      return new Blob(parts.concat(central,[e]),{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    }
+    xb.addEventListener('click',function(){
+      var heads=['#','Status','Section','Finding','Solution','Date Solved'];
+      var L=['A','B','C','D','E','F'];
+      var trs=document.querySelectorAll('.sumtbl tbody tr');
+      var x='<row r="1" ht="24" customHeight="1">';
+      heads.forEach(function(h,k){x+=cs(L[k]+'1',1,h);});
+      x+='</row>';
+      for(var i=0;i<trs.length;i++){
+        var r=i+2, td=trs[i].querySelectorAll('td'), st=td[1].textContent.trim();
+        x+='<row r="'+r+'">'+cn('A'+r,2,parseInt(td[0].textContent,10)||(i+1))+cs('B'+r,st==='FAIL'?3:4,st)+cs('C'+r,2,td[2].textContent.trim())+cs('D'+r,2,td[3].textContent.trim())+ce('E'+r,2)+ce('F'+r,5)+'</row>';
+      }
+      var H='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+      var NS='http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+      var sheet=H+'<worksheet xmlns="'+NS+'"><dimension ref="A1:F'+(trs.length+1)+'"/>'+
+        '<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'+
+        '<sheetFormatPr defaultRowHeight="15"/>'+
+        '<cols><col min="1" max="1" width="6" customWidth="1"/><col min="2" max="2" width="11" customWidth="1"/><col min="3" max="3" width="30" customWidth="1"/><col min="4" max="4" width="90" customWidth="1"/><col min="5" max="5" width="55" customWidth="1"/><col min="6" max="6" width="16" customWidth="1"/></cols>'+
+        '<sheetData>'+x+'</sheetData><autoFilter ref="A1:F'+(trs.length+1)+'"/></worksheet>';
+      var styles=H+'<styleSheet xmlns="'+NS+'">'+
+        '<fonts count="4"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFBE123C"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFB45309"/><name val="Calibri"/></font></fonts>'+
+        '<fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1F2937"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFE4E6"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFEF3C7"/><bgColor indexed="64"/></patternFill></fill></fills>'+
+        '<borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFD9DEEA"/></left><right style="thin"><color rgb="FFD9DEEA"/></right><top style="thin"><color rgb="FFD9DEEA"/></top><bottom style="thin"><color rgb="FFD9DEEA"/></bottom><diagonal/></border></borders>'+
+        '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
+        '<cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+
+        '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'+
+        '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>'+
+        '<xf numFmtId="0" fontId="2" fillId="3" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>'+
+        '<xf numFmtId="0" fontId="3" fillId="4" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf>'+
+        '<xf numFmtId="14" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="top"/></xf></cellXfs>'+
+        '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+      var RNS='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+      var PR='http://schemas.openxmlformats.org/package/2006/relationships';
+      var files=[
+        ['[Content_Types].xml',H+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
+        ['_rels/.rels',H+'<Relationships xmlns="'+PR+'"><Relationship Id="rId1" Type="'+RNS+'/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
+        ['xl/workbook.xml',H+'<workbook xmlns="'+NS+'" xmlns:r="'+RNS+'"><sheets><sheet name="Summary of issues" sheetId="1" r:id="rId1"/></sheets></workbook>'],
+        ['xl/_rels/workbook.xml.rels',H+'<Relationships xmlns="'+PR+'"><Relationship Id="rId1" Type="'+RNS+'/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="'+RNS+'/styles" Target="styles.xml"/></Relationships>'],
+        ['xl/styles.xml',styles],
+        ['xl/worksheets/sheet1.xml',sheet]
+      ];
+      var d=new Date(), p=function(n){return (n<10?'0':'')+n;};
+      var tm=document.title.match(/ - (.+)$/), host=(tm?tm[1]:'server').replace(/[^A-Za-z0-9._-]+/g,'_');
+      var fn='healthcheck-issues-'+host+'-'+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds())+'.xlsx';
+      var a=document.createElement('a');
+      a.href=URL.createObjectURL(zip(files)); a.download=fn;
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){URL.revokeObjectURL(a.href); a.remove();},1000);
+    });
+  })();
+
   /* expand everything when printing */
   window.addEventListener('beforeprint',function(){document.querySelectorAll('.sec').forEach(function(s){s.setAttribute('open','');});});
 })();
@@ -655,7 +773,7 @@ footer .sub{margin-top:10px;font-size:12px}
             '<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark">' +
             '<title>' + $reportTitle + ' - ' + (& $enc $env:COMPUTERNAME) + '</title>' +
             '<style>' + $css + '</style></head><body>' + $topbar +
-            '<main class="wrap">' + ($hero -join "`n") + ($stats -join "`n") + ($gauges -join "`n") + $secs.ToString() +
+            '<main class="wrap">' + ($hero -join "`n") + ($stats -join "`n") + ($gauges -join "`n") + ($summary -join "`n") + $secs.ToString() +
             $footer + '<div class="sub">Generated by healthcheck.ps1</div></footer></main>' +
             '<script>' + $js + '</script></body></html>'
 
