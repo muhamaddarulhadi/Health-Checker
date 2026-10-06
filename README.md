@@ -19,9 +19,9 @@ Health-Checker/
 |-- .gitignore            keeps generated reports out of git
 |-- scripts/
 |   |-- healthcheck.ps1   Windows (PowerShell)
-|   `-- healthcheck.sh    Linux (bash)
-`-- assets/
-    `-- icons/            favicon.ico, favicon.svg, PNG icons
+|   |-- healthcheck.sh    Linux (bash)
+|-- assets/
+    |-- icons/            favicon.ico, favicon.svg, PNG icons
 ```
 
 Run the scripts from inside the `scripts` folder (`cd scripts` first), or give the full path to the script.
@@ -137,7 +137,7 @@ sudo bash healthcheck.sh --log ./health.log
 
 ## HTML report
 
-Add `-Html` (Windows) or `--html` (Linux) to get a modern web page titled **SERVER HEALTH & SECURITY DIAGNOSTIC REPORT**. It has a green / amber / red status banner with a pass-rate ring, counts of failures, warnings and passed checks, "At a glance" gauges for CPU, RAM and every disk, collapsible sections with the listening-ports and top-process tables, an **Issues only** filter, and a dark / light toggle.
+Add `-Html` (Windows) or `--html` (Linux) to get a modern web page titled **SERVER HEALTH & SECURITY DIAGNOSTIC REPORT**. It has a green / amber / red status banner with a pass-rate ring, counts of failures, warnings and passed checks, "At a glance" gauges for CPU, RAM and every disk, a **Summary of issues** table of every warning and failure with a **Download Excel** button, collapsible sections with the listening-ports and top-process tables, an **Issues only** filter, and a dark / light toggle.
 
 ```powershell
 # Windows: saves the report and opens it in your browser
@@ -147,6 +147,12 @@ powershell -ExecutionPolicy Bypass -File .\healthcheck.ps1 -Html -SkipUpdates
 # Linux: saves healthcheck-report-<host>-<time>.html in the current folder
 sudo bash healthcheck.sh --html
 ```
+
+### Summary of issues and Excel download
+
+Just above "Detailed results", the report lists every warning and failure in one table (failures first) with the columns **#**, **Status**, **Section** and **Finding**.
+
+Click **Download Excel** to save the table as an `.xlsx` file named `healthcheck-issues-<host>-<time>.xlsx`. The Excel file has the same columns plus two empty ones on the right, **Solution** and **Date Solved**, so you can write what you did and when each issue was fixed. The file is created in your browser, so it also works offline and on a report copied from a headless server. If there are no warnings or failures, the button is hidden.
 
 A headless Ubuntu server has no browser, so see the next section, "Viewing the HTML report on a headless server".
 
@@ -248,6 +254,8 @@ The HTML report is built to print cleanly on A4, with the status colors kept.
 3. Choose **Save as PDF** as the destination and click Save.
 4. If colors look faded, tick **Background graphics** under "More settings".
 
+The Download Excel button is left out of the printed page.
+
 ---
 
 ## Reading the results
@@ -265,6 +273,8 @@ The last lines show a summary and an overall status:
 | HEALTHY | 0 | No warnings or failures |
 | DEGRADED | 1 | One or more warnings |
 | UNHEALTHY | 2 | One or more failures |
+
+In the HTML report, the **Summary of issues** table gathers all `WARN` and `FAIL` lines in one place, and **Download Excel** turns it into a worksheet you can use to track fixes (see "HTML report" above).
 
 In the open-ports section:
 - `0.0.0.0` / `::` (Windows column shows `NETWORK`) means reachable from other machines (unless a firewall blocks it).
