@@ -271,7 +271,7 @@ footer b{background:linear-gradient(90deg,#6366f1,#ec4899);-webkit-background-cl
 <div class="hero">
   <span class="kicker">Windows &middot; Linux &middot; Ubuntu</span>
   <h1>Server Health Check</h1>
-  <p>Check CPU, RAM, storage, network, open ports and security updates in one run. Follow the steps below to run the scripts and read the report.</p>
+  <p>Check CPU, RAM, storage, network, open ports and security updates in one run, then open a modern HTML report with a summary of issues you can download as Excel. Follow the steps below to run the scripts and read the report.</p>
   <div class="chips">
     <a class="chip w" href="#windows"><b></b>Windows</a>
     <a class="chip l" href="#linux"><b></b>Linux</a>
@@ -294,11 +294,13 @@ footer b{background:linear-gradient(90deg,#6366f1,#ec4899);-webkit-background-cl
 <pre>Health-Checker/
 |-- index.html            this guide
 |-- README.md             same guide as plain text
+|-- .nojekyll             needed for GitHub Pages
+|-- .gitignore            keeps generated reports out of git
 |-- scripts/
 |   |-- healthcheck.ps1   Windows (PowerShell)
-|   `-- healthcheck.sh    Linux (bash)
-`-- assets/
-    `-- icons/            favicon.ico, favicon.svg, PNG icons</pre>
+|   |-- healthcheck.sh    Linux (bash)
+|-- assets/
+    |-- icons/            favicon.ico, favicon.svg, PNG icons</pre>
   <p>Get the files from the repository: <a href="https://github.com/muhamaddarulhadi/Health-Checker" target="_blank" rel="noopener noreferrer">github.com/muhamaddarulhadi/Health-Checker</a>.</p>
   <p>Run the scripts from inside the <code>scripts</code> folder (<code>cd scripts</code> first), or give the full path to the script.</p>
   <h3 id="checks">What it checks</h3>
@@ -396,7 +398,7 @@ sudo bash healthcheck.sh --log ./health.log</pre>
 <!-- ======= HTML report ======= -->
 <section id="html">
   <h2><span class="ico"><svg viewBox="0 0 24 24"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg></span>HTML report</h2>
-  <p>Add <code>-Html</code> (Windows) or <code>--html</code> (Linux) to get a modern web page titled <b>SERVER HEALTH &amp; SECURITY DIAGNOSTIC REPORT</b>. It has a green / amber / red status banner with a pass-rate ring, counts of failures, warnings and passed checks, "At a glance" gauges for CPU, RAM and every disk, collapsible sections with the listening-ports and top-process tables, an <b>Issues only</b> filter, and a dark / light toggle.</p>
+  <p>Add <code>-Html</code> (Windows) or <code>--html</code> (Linux) to get a modern web page titled <b>SERVER HEALTH &amp; SECURITY DIAGNOSTIC REPORT</b>. It has a green / amber / red status banner with a pass-rate ring, counts of failures, warnings and passed checks, "At a glance" gauges for CPU, RAM and every disk, a <b>Summary of issues</b> table of every warning and failure with a <b>Download Excel</b> button, collapsible sections with the listening-ports and top-process tables, an <b>Issues only</b> filter, and a dark / light toggle.</p>
   <div class="status-row">
     <span class="pill ok">HEALTHY</span><span class="pill warn">DEGRADED</span><span class="pill fail">UNHEALTHY</span>
   </div>
@@ -408,6 +410,9 @@ powershell -ExecutionPolicy Bypass -File .\healthcheck.ps1 -Html -SkipUpdates</p
 <pre># Linux: saves healthcheck-report-&lt;host&gt;-&lt;time&gt;.html in the current folder
 sudo bash healthcheck.sh --html</pre>
   </div>
+  <h3>Summary of issues and Excel download</h3>
+  <p>Just above "Detailed results", the report lists every warning and failure in one table (failures first) with the columns <b>#</b>, <b>Status</b>, <b>Section</b> and <b>Finding</b>. It is the quickest way to see what needs fixing.</p>
+  <p>Click <b>Download Excel</b> to save the table as an <code>.xlsx</code> file named <code>healthcheck-issues-&lt;host&gt;-&lt;time&gt;.xlsx</code>. The Excel file has the same columns plus two empty ones on the right, <b>Solution</b> and <b>Date Solved</b>, so you can write what you did and when each issue was fixed. The file is created in your browser, so it also works offline and on a report you copied from a headless server. If there are no warnings or failures, the button is hidden.</p>
   <p>A headless Ubuntu server has no browser, so see <a href="#headless">Viewing the HTML report on a headless server</a>. To keep the report as a file you can email or archive, see <a href="#pdf">Save as PDF</a>.</p>
   <p>For a page that always shows the latest result, run it on a schedule with a fixed output file, for example <code>--html --out /var/www/html/health.html</code> (see <a href="#auto">Run it automatically</a>).</p>
 </section>
@@ -481,7 +486,7 @@ auth_basic_user_file /etc/nginx/.htpasswd;</pre>
     <li><b class="t">Choose "Save as PDF"</b> as the destination (Chrome and Edge: <i>Destination &rarr; Save as PDF</i>).</li>
     <li><b class="t">Click Save.</b> If colors look faded, tick <b>Background graphics</b> under "More settings".</li>
   </ol>
-  <p>This guide can be saved the same way with the PDF button in the top bar. It always prints in light colors.</p>
+  <p>The Download Excel button is left out of the printed page. This guide can be saved the same way with the PDF button in the top bar. It always prints in light colors.</p>
 </section>
 
 <!-- ======= Results ======= -->
@@ -499,6 +504,7 @@ auth_basic_user_file /etc/nginx/.htpasswd;</pre>
     <tr><td><span class="pill warn">DEGRADED</span></td><td>1</td><td>One or more warnings</td></tr>
     <tr><td><span class="pill fail">UNHEALTHY</span></td><td>2</td><td>One or more failures</td></tr>
   </table>
+  <p>In the HTML report, the <b>Summary of issues</b> table gathers all <span class="lv warn">WARN</span> and <span class="lv fail">FAIL</span> lines in one place, and <b>Download Excel</b> turns it into a worksheet you can use to track fixes (see <a href="#html">HTML report</a>).</p>
   <p>In the open-ports section:</p>
   <ul>
     <li><code>0.0.0.0</code> / <code>::</code> (Windows column shows <code>NETWORK</code>) means reachable from other machines, unless a firewall blocks it.</li>
@@ -549,8 +555,8 @@ $ShowLastN = 5                      # recent events / attempts to list</pre>
       <li><b>Actions</b>: New. Program: <code>powershell.exe</code>. Arguments:
 <pre>-ExecutionPolicy Bypass -File "C:\path\healthcheck.ps1" -SkipUpdates -Quiet</pre></li>
     </ol>
-    <p>To save output to a log, use this as the argument instead:</p>
-<pre>-ExecutionPolicy Bypass -Command "&amp; 'C:\path\healthcheck.ps1' -SkipUpdates -Quiet *&gt;&gt; C:\path\health.log"</pre>
+    <p>To save output to a log, add <code>-LogFile</code>:</p>
+<pre>-ExecutionPolicy Bypass -File "C:\path\healthcheck.ps1" -SkipUpdates -Quiet -LogFile "C:\path\health.log"</pre>
   </div>
   <div data-os="lin">
     <h3>Linux: cron</h3>
